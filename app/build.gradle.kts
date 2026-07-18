@@ -21,6 +21,11 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    // Android emulator's alias for the host machine's localhost. Point this at
+    // your LAN IP (e.g. "http://192.168.1.20:8080/api/v1/") to run against a
+    // physical device instead of the emulator.
+    buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/api/v1/\"")
   }
 
   signingConfigs {
@@ -85,6 +90,7 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
+  implementation(libs.androidx.compose.ui.text.google.fonts)
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)

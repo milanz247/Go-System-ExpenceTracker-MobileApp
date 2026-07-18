@@ -1,4 +1,4 @@
-package com.example.ui.login
+package com.example.ui.auth
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -29,17 +28,29 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.GeistMono
 import com.example.ui.theme.PitchBlack
 import com.example.ui.theme.PureWhite
 import com.example.ui.theme.Zinc400
-import com.example.ui.theme.Zinc700
 import com.example.ui.theme.Zinc800
 import com.example.ui.theme.Zinc900
 
+private val fieldColors: @Composable () -> TextFieldColors = {
+    OutlinedTextFieldDefaults.colors(
+        focusedTextColor = PureWhite,
+        unfocusedTextColor = PureWhite,
+        focusedBorderColor = PureWhite,
+        unfocusedBorderColor = Zinc800,
+        focusedLabelColor = PureWhite,
+        unfocusedLabelColor = Zinc400,
+        cursorColor = PureWhite
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(
-    viewModel: LoginViewModel,
+fun AuthScreen(
+    viewModel: AuthViewModel,
     onNavigateToDashboard: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -49,15 +60,16 @@ fun LoginScreen(
     val currency by viewModel.currency.collectAsState()
     val isSignUpMode by viewModel.isSignUpMode.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val statusMessage by viewModel.statusMessage.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
     var passwordVisible by remember { mutableStateOf(false) }
+    var currencyMenuExpanded by remember { mutableStateOf(false) }
 
-    // Navigation trigger
     LaunchedEffect(key1 = Unit) {
         viewModel.navigationEvents.collect { event ->
             when (event) {
-                is LoginViewModel.LoginEvent.NavigateToDashboard -> onNavigateToDashboard()
+                is AuthViewModel.AuthEvent.NavigateToDashboard -> onNavigateToDashboard()
             }
         }
     }
@@ -82,7 +94,6 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Minimalist Logo Icon (Monochromatic Square Vector Icon)
                 Box(
                     modifier = Modifier
                         .size(60.dp)
@@ -95,8 +106,7 @@ fun LoginScreen(
                         text = "F",
                         color = PureWhite,
                         fontSize = 28.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = FontFamily.SansSerif
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
 
@@ -108,7 +118,7 @@ fun LoginScreen(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 2.sp,
                     color = PureWhite,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = GeistMono,
                     textAlign = TextAlign.Center
                 )
 
@@ -126,7 +136,6 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // SignUp Mode Only Fields (Name & Currency)
                 AnimatedVisibility(
                     visible = isSignUpMode,
                     enter = fadeIn(),
@@ -139,49 +148,54 @@ fun LoginScreen(
                         OutlinedTextField(
                             value = name,
                             onValueChange = viewModel::onNameChanged,
-                            label = { Text("Display Name") },
+                            label = { Text("Full Name") },
                             placeholder = { Text("Jane Doe") },
                             singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = PureWhite,
-                                unfocusedTextColor = PureWhite,
-                                focusedBorderColor = PureWhite,
-                                unfocusedBorderColor = Zinc800,
-                                focusedLabelColor = PureWhite,
-                                unfocusedLabelColor = Zinc400,
-                                cursorColor = PureWhite
-                            ),
+                            colors = fieldColors(),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("name_input"),
                             shape = RoundedCornerShape(12.dp)
                         )
 
-                        OutlinedTextField(
-                            value = currency,
-                            onValueChange = viewModel::onCurrencyChanged,
-                            label = { Text("Reporting Currency") },
-                            placeholder = { Text("USD, EUR, GBP...") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = PureWhite,
-                                unfocusedTextColor = PureWhite,
-                                focusedBorderColor = PureWhite,
-                                unfocusedBorderColor = Zinc800,
-                                focusedLabelColor = PureWhite,
-                                unfocusedLabelColor = Zinc400,
-                                cursorColor = PureWhite
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("currency_input"),
-                            shape = RoundedCornerShape(12.dp)
-                        )
+                        ExposedDropdownMenuBox(
+                            expanded = currencyMenuExpanded,
+                            onExpandedChange = { currencyMenuExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = currency,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Reporting Currency") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyMenuExpanded) },
+                                colors = fieldColors(),
+                                textStyle = LocalTextStyle.current.copy(fontFamily = GeistMono),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                                    .testTag("currency_input"),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            ExposedDropdownMenu(
+                                expanded = currencyMenuExpanded,
+                                onDismissRequest = { currencyMenuExpanded = false },
+                                containerColor = Zinc900
+                            ) {
+                                SUPPORTED_CURRENCIES.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(text = option, color = PureWhite, fontFamily = GeistMono) },
+                                        onClick = {
+                                            viewModel.onCurrencySelected(option)
+                                            currencyMenuExpanded = false
+                                        },
+                                        modifier = Modifier.testTag("currency_option_$option")
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
-                // Email Field
                 OutlinedTextField(
                     value = email,
                     onValueChange = viewModel::onEmailChanged,
@@ -189,27 +203,19 @@ fun LoginScreen(
                     placeholder = { Text("user@example.com") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = PureWhite,
-                        unfocusedTextColor = PureWhite,
-                        focusedBorderColor = PureWhite,
-                        unfocusedBorderColor = Zinc800,
-                        focusedLabelColor = PureWhite,
-                        unfocusedLabelColor = Zinc400,
-                        cursorColor = PureWhite
-                    ),
+                    colors = fieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("email_input"),
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                // Password Field
                 OutlinedTextField(
                     value = password,
                     onValueChange = viewModel::onPasswordChanged,
-                    label = { Text("Secret Password") },
+                    label = { Text("Password") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         IconButton(
@@ -223,15 +229,7 @@ fun LoginScreen(
                             )
                         }
                     },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = PureWhite,
-                        unfocusedTextColor = PureWhite,
-                        focusedBorderColor = PureWhite,
-                        unfocusedBorderColor = Zinc800,
-                        focusedLabelColor = PureWhite,
-                        unfocusedLabelColor = Zinc400,
-                        cursorColor = PureWhite
-                    ),
+                    colors = fieldColors(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("password_input"),
@@ -239,7 +237,6 @@ fun LoginScreen(
                 )
             }
 
-            // Error Message Banner
             if (errorMessage != null) {
                 Text(
                     text = errorMessage!!,
@@ -251,9 +248,19 @@ fun LoginScreen(
                         .padding(horizontal = 8.dp)
                         .testTag("error_banner")
                 )
+            } else if (statusMessage != null) {
+                Text(
+                    text = statusMessage!!,
+                    color = Zinc400,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                        .testTag("status_banner")
+                )
             }
 
-            // CTA Button & Toggle Button
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -282,7 +289,7 @@ fun LoginScreen(
                         )
                     } else {
                         Text(
-                            text = if (isSignUpMode) "AUTHORIZE & REGISTER" else "AUTHORIZE CONNECT",
+                            text = if (isSignUpMode) "CREATE ACCOUNT" else "SIGN IN",
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp,
                             fontSize = 14.sp
@@ -296,7 +303,7 @@ fun LoginScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isSignUpMode) "Already verified?" else "New ledger deployment?",
+                        text = if (isSignUpMode) "Already have an account?" else "New here?",
                         fontSize = 13.sp,
                         color = Zinc400
                     )
@@ -306,7 +313,7 @@ fun LoginScreen(
                         color = PureWhite,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
-                            .clickable { viewModel.toggleMode() }
+                            .clickable(enabled = !isLoading) { viewModel.toggleMode() }
                             .testTag("toggle_mode_button")
                     )
                 }

@@ -29,10 +29,10 @@ import androidx.navigation.compose.rememberNavController
 import com.example.data.DataStoreManager
 import com.example.network.ApiService
 import com.example.network.NetworkClient
+import com.example.ui.auth.AuthScreen
+import com.example.ui.auth.AuthViewModel
 import com.example.ui.dashboard.DashboardScreen
 import com.example.ui.dashboard.DashboardViewModel
-import com.example.ui.login.LoginScreen
-import com.example.ui.login.LoginViewModel
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.PitchBlack
 import com.example.ui.theme.PureWhite
@@ -51,10 +51,10 @@ class MainActivity : ComponentActivity() {
         val apiService = NetworkClient.getApiService(applicationContext, dataStoreManager)
 
         // 2. Initialize ViewModels via clean custom ViewModelProvider Factories
-        val loginViewModel = ViewModelProvider(
+        val authViewModel = ViewModelProvider(
             this,
-            LoginViewModelFactory(apiService, dataStoreManager)
-        )[LoginViewModel::class.java]
+            AuthViewModelFactory(apiService, dataStoreManager)
+        )[AuthViewModel::class.java]
 
         val dashboardViewModel = ViewModelProvider(
             this,
@@ -110,8 +110,8 @@ class MainActivity : ComponentActivity() {
                             startDestination = startDestination!!
                         ) {
                             composable("login") {
-                                LoginScreen(
-                                    viewModel = loginViewModel,
+                                AuthScreen(
+                                    viewModel = authViewModel,
                                     onNavigateToDashboard = {
                                         navController.navigate("dashboard") {
                                             popUpTo("login") { inclusive = true }
@@ -138,14 +138,14 @@ class MainActivity : ComponentActivity() {
 }
 
 // Custom ViewModel Factory implementations to support Simple Constructor Injection (MVVM)
-class LoginViewModelFactory(
+class AuthViewModelFactory(
     private val apiService: ApiService,
     private val dataStoreManager: DataStoreManager
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
-            return LoginViewModel(apiService, dataStoreManager) as T
+        if (modelClass.isAssignableFrom(AuthViewModel::class.java)) {
+            return AuthViewModel(apiService, dataStoreManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
