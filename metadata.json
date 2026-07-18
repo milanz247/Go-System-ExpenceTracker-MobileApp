@@ -1,0 +1,6 @@
+{
+  "name": "Finance Tracker",
+  "description": "A premium monochromatic companion for your Financial Expenses & Income Tracker featuring modern secure JWT auth and a high-thinking Gemini AI helper.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
