@@ -1,90 +1,74 @@
 package com.example.ui.dashboard
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.network.Transaction
-import com.example.network.Wallet
-import com.example.ui.theme.MatteBlack
+import com.example.network.AccountResponse
+import com.example.network.CashFlowPoint
+import com.example.network.CategoryBreakdownItem
+import com.example.network.MetricWithTrend
+import com.example.network.RecentTransaction
+import com.example.network.TXN_TYPE_EXPENSE
+import com.example.ui.common.EmptyState
+import com.example.ui.common.ErrorBanner
+import com.example.ui.common.FullScreenLoader
+import com.example.ui.common.MatteCard
+import com.example.ui.common.SectionLabel
+import com.example.ui.common.formatMoney
+import com.example.ui.common.formatMoneyCompact
+import com.example.ui.common.parseHexColor
+import com.example.ui.theme.GeistMono
 import com.example.ui.theme.PitchBlack
 import com.example.ui.theme.PureWhite
-import com.example.ui.theme.Zinc100
-import com.example.ui.theme.Zinc200
-import com.example.ui.theme.Zinc300
 import com.example.ui.theme.Zinc400
 import com.example.ui.theme.Zinc500
 import com.example.ui.theme.Zinc700
 import com.example.ui.theme.Zinc800
 import com.example.ui.theme.Zinc900
-import com.example.ui.theme.Zinc950
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
-    onNavigateToLogin: () -> Unit,
+    onSeeAllTransactions: () -> Unit,
+    onAddTransaction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val userName by viewModel.userName.collectAsState()
     val userCurrency by viewModel.userCurrency.collectAsState()
-    val wallets by viewModel.wallets.collectAsState()
-    val transactions by viewModel.transactions.collectAsState()
+    val summary by viewModel.summary.collectAsState()
+    val accounts by viewModel.accounts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
-
-    // AI advisor states
-    val aiQuery by viewModel.aiQuery.collectAsState()
-    val aiResponse by viewModel.aiResponse.collectAsState()
-    val isAiThinking by viewModel.isAiThinking.collectAsState()
-    val aiError by viewModel.aiError.collectAsState()
-
-    // Total balance & metrics calculations
-    val totalBalance = remember(wallets) {
-        wallets.sumOf { it.balance }
-    }
-    val totalIncome = remember(transactions) {
-        transactions.filter { it.type.uppercase() == "INCOME" }.sumOf { it.amount }
-    }
-    val totalExpenses = remember(transactions) {
-        transactions.filter { it.type.uppercase() == "EXPENSE" }.sumOf { Math.abs(it.amount) }
-    }
-
-    // Navigation trigger
-    LaunchedEffect(key1 = Unit) {
-        viewModel.navigationEvents.collect { event ->
-            when (event) {
-                is DashboardViewModel.DashboardEvent.NavigateToLogin -> onNavigateToLogin()
-            }
-        }
-    }
 
     Box(
         modifier = modifier
@@ -92,481 +76,100 @@ fun DashboardScreen(
             .background(PitchBlack)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        LazyColumn(
+        androidx.compose.foundation.lazy.LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 48.dp)
+            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
         ) {
-            // Header Section
             item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
+                    Column {
+                        Text(text = "Dashboard", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = PureWhite)
                         Text(
-                            text = "Dashboard",
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Light,
-                            color = PureWhite,
-                            letterSpacing = (-0.5).sp,
-                            modifier = Modifier.testTag("welcome_text")
-                        )
-
-                        // Avatar Widget (Tailwind bg-zinc-900 border border-zinc-800 flex items-center justify-center)
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Zinc900)
-                                .border(1.dp, Zinc800, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = userName.take(2).uppercase(),
-                                color = Zinc400,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Welcome back, $userName",
-                            color = Zinc500,
-                            fontSize = 14.sp
-                        )
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            IconButton(
-                                onClick = { viewModel.loadDashboardData() },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Sync system",
-                                    tint = Zinc500,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Text(
-                                text = "•",
-                                color = Zinc700,
-                                fontSize = 12.sp
-                            )
-                            Text(
-                                text = "Disconnect",
-                                color = Zinc500,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier
-                                    .clickable { viewModel.logout() }
-                                    .testTag("logout_button")
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Sync error banner
-            if (errorMessage != null) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Zinc950)
-                            .border(1.dp, Color.Red.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                            .padding(16.dp)
-                            .testTag("sync_error_banner")
-                    ) {
-                        Text(
-                            text = errorMessage!!,
-                            color = Color.Red,
+                            text = if (userName.isBlank()) "Welcome back" else "Welcome back, $userName",
                             fontSize = 13.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
+                            color = Zinc500
                         )
+                    }
+                    IconButton(onClick = { viewModel.load() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Zinc500)
                     }
                 }
             }
 
-            // Total Balance Card (Clean Minimalism Capsule Box)
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(32.dp))
-                        .background(Zinc950)
-                        .border(1.dp, Zinc800, RoundedCornerShape(32.dp))
-                        .padding(28.dp)
-                        .testTag("total_balance_card")
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = "NET WORTH",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                letterSpacing = 2.5.sp,
-                                color = Zinc500,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            Text(
-                                text = String.format("%s %,.2f", userCurrency, totalBalance),
-                                fontSize = 38.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = PureWhite,
-                                letterSpacing = (-1.5).sp,
-                                fontFamily = FontFamily.SansSerif
-                            )
-                        }
+            if (errorMessage != null) {
+                item { ErrorBanner(errorMessage!!) }
+            }
 
-                        // Split detail section with Income and Expenses
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "INCOME",
-                                    fontSize = 10.sp,
-                                    color = Zinc500,
-                                    letterSpacing = 1.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                                Text(
-                                    text = String.format("+%s %,.0f", userCurrency, totalIncome),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = PureWhite
-                                )
-                            }
+            if (isLoading && summary == null) {
+                item { FullScreenLoader(modifier = Modifier.fillMaxWidth().height(200.dp)) }
+            }
 
-                            // Center border separator
-                            Box(
-                                modifier = Modifier
-                                    .height(24.dp)
-                                    .width(1.dp)
-                                    .background(Zinc800)
-                            )
+            summary?.let { s ->
+                item {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        MetricCard("Income", s.totalIncome, userCurrency, Modifier.weight(1f))
+                        MetricCard("Expense", s.totalExpense, userCurrency, Modifier.weight(1f))
+                        MetricCard("Net", s.netBalance, userCurrency, Modifier.weight(1f))
+                    }
+                }
 
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "EXPENSES",
-                                    fontSize = 10.sp,
-                                    color = Zinc500,
-                                    letterSpacing = 1.sp,
-                                    fontFamily = FontFamily.Monospace
-                                )
-                                Text(
-                                    text = String.format("-%s %,.0f", userCurrency, totalExpenses),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = PureWhite
-                                )
+                if (accounts.isNotEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SectionLabel("Wallets")
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(accounts) { account -> WalletChip(account, userCurrency) }
                             }
                         }
                     }
                 }
-            }
 
-            // Active Wallet Systems
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "ACTIVE WALLETS",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Zinc400,
-                            letterSpacing = 1.5.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Text(
-                            text = "View all",
-                            fontSize = 11.sp,
-                            color = Zinc500,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    if (wallets.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(Zinc950)
-                                .border(1.dp, Zinc800, RoundedCornerShape(24.dp))
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AccountBalance,
-                                    contentDescription = null,
-                                    tint = Zinc700,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                                Text(
-                                    text = "No active ledger accounts detected.",
-                                    color = Zinc500,
-                                    fontSize = 13.sp,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
+                if (s.cashFlow.isNotEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SectionLabel("Cash Flow")
+                            MatteCard { CashFlowBarChart(s.cashFlow) }
                         }
-                    } else {
-                        // Alternate background cards (odd = Zinc900 with subtle borders, even = PureWhite with high contrast text)
+                    }
+                }
+
+                if (s.categoryBreakdown.isNotEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SectionLabel("Spend by Category")
+                            MatteCard { CategoryBreakdownRow(s.categoryBreakdown) }
+                        }
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            wallets.forEachIndexed { index, wallet ->
-                                Box(modifier = Modifier.weight(1f)) {
-                                    WalletItemCard(wallet = wallet, isPrimaryContrast = (index % 2 == 1))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Historical Ledger Listings (Recent Transactions)
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = "RECENT ACTIVITY",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Zinc400,
-                        letterSpacing = 1.5.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-
-                    if (transactions.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(Zinc950)
-                                .border(1.dp, Zinc800, RoundedCornerShape(24.dp))
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                            SectionLabel("Recent Activity")
                             Text(
-                                text = "No ledger entries recorded yet.",
-                                color = Zinc500,
-                                fontSize = 13.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    } else {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            transactions.forEach { transaction ->
-                                TransactionItemRow(transaction = transaction)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // High-Thinking AI Financial Advisor (Gemini Core integration)
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Zinc950)
-                        .border(1.dp, Zinc800, RoundedCornerShape(24.dp))
-                        .padding(24.dp)
-                        .testTag("ai_advisor_section")
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = PureWhite,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "AI INTEL ADVISOR",
+                                text = "See all",
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PureWhite,
-                                letterSpacing = 1.5.sp,
-                                fontFamily = FontFamily.Monospace
+                                color = Zinc400,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.clickable { onSeeAllTransactions() }
                             )
                         }
-
-                        Text(
-                            text = "Query the model with your custom requests. Operates with gemini-3.1-pro-preview in HIGH-THINKING mode to structure budgets, calculate savings, or perform complex margin optimizations.",
-                            fontSize = 12.sp,
-                            color = Zinc400,
-                            lineHeight = 16.sp
-                        )
-
-                        // Input Field
-                        OutlinedTextField(
-                            value = aiQuery,
-                            onValueChange = viewModel::onAiQueryChanged,
-                            label = { Text("Enter prompt / strategy target") },
-                            placeholder = { Text("e.g. Draft an investment blueprint...") },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = PureWhite,
-                                unfocusedTextColor = PureWhite,
-                                focusedBorderColor = PureWhite,
-                                unfocusedBorderColor = Zinc850Color(),
-                                focusedLabelColor = PureWhite,
-                                unfocusedLabelColor = Zinc400,
-                                cursorColor = PureWhite
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("ai_query_input"),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-
-                        // Action Button
-                        Button(
-                            onClick = { viewModel.askAiAdvisor() },
-                            enabled = !isAiThinking && aiQuery.isNotBlank(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = PureWhite,
-                                contentColor = PitchBlack,
-                                disabledContainerColor = Zinc800,
-                                disabledContentColor = Zinc400
-                    ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                                .testTag("ai_query_button"),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text(
-                                text = "ENGAGE THINKING PROCESS",
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp,
-                                fontSize = 12.sp
-                            )
-                        }
-
-                        // Thinking Scanner Loader
-                        AnimatedVisibility(
-                            visible = isAiThinking,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                LinearThinkingProgressIndicator()
-                                Text(
-                                    text = "GEMINI IS DEEP THINKING (HIGH LEVEL)... PLEASE WAIT",
-                                    fontSize = 10.sp,
-                                    color = PureWhite,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 1.sp
-                                )
-                            }
-                        }
-
-                        // Response Output Block
-                        AnimatedVisibility(
-                            visible = aiResponse != null,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            aiResponse?.let { text ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(PitchBlack)
-                                        .border(1.dp, Zinc800, RoundedCornerShape(16.dp))
-                                        .padding(16.dp)
-                                        .testTag("ai_response_box")
-                                ) {
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(
-                                            text = "ADVISORY STRATEGY OUTPUT:",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Zinc500,
-                                            fontFamily = FontFamily.Monospace,
-                                            letterSpacing = 1.sp
-                                        )
-                                        Text(
-                                            text = text,
-                                            fontSize = 13.sp,
-                                            color = Zinc200,
-                                            lineHeight = 18.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // AI Error Banner
-                        AnimatedVisibility(
-                            visible = aiError != null,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            aiError?.let { err ->
-                                Text(
-                                    text = err,
-                                    color = Color.Red,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("ai_error_banner")
-                                )
+                        if (s.recentTransactions.isEmpty()) {
+                            EmptyState("No transactions yet.")
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                s.recentTransactions.forEach { RecentActivityRow(it, userCurrency) }
                             }
                         }
                     }
@@ -576,183 +179,211 @@ fun DashboardScreen(
     }
 }
 
-// Helper color for cleaner outlines
 @Composable
-fun Zinc850Color() = Color(0xFF1F1F23)
+private fun MetricCard(label: String, metric: MetricWithTrend, currency: String, modifier: Modifier = Modifier) {
+    MatteCard(modifier = modifier, cornerRadius = 20, contentPadding = PaddingValues(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(text = label.uppercase(), fontSize = 10.sp, color = Zinc500, letterSpacing = 1.sp, fontFamily = GeistMono)
+            Text(
+                text = formatMoneyCompact(metric.amountCents, currency),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PureWhite,
+                fontFamily = GeistMono,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val change = metric.changePercent
+            if (change != null) {
+                val positive = change >= 0
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Icon(
+                        imageVector = if (positive) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                        contentDescription = null,
+                        tint = if (positive) Color(0xFF22C55E) else Color(0xFFF43F5E),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = "${String.format("%.1f", Math.abs(change))}%",
+                        fontSize = 11.sp,
+                        color = if (positive) Color(0xFF22C55E) else Color(0xFFF43F5E)
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
-fun WalletItemCard(wallet: Wallet, isPrimaryContrast: Boolean) {
+private fun WalletChip(account: AccountResponse, currency: String) {
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(128.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(if (isPrimaryContrast) PureWhite else Zinc900)
-            .border(
-                1.dp,
-                if (isPrimaryContrast) Color.Transparent else Zinc800,
-                RoundedCornerShape(24.dp)
-            )
-            .padding(18.dp)
-            .testTag("wallet_card_${wallet.id}")
+            .width(140.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Zinc900)
+            .border(1.dp, Zinc800, RoundedCornerShape(18.dp))
+            .padding(14.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Icon Badge
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(if (isPrimaryContrast) Zinc100 else PitchBlack)
-                    .border(
-                        1.dp,
-                        if (isPrimaryContrast) Color.Transparent else Zinc700,
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = wallet.name.take(1).uppercase(),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isPrimaryContrast) PitchBlack else PureWhite
-                )
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = account.name,
+                fontSize = 12.sp,
+                color = Zinc400,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = formatMoneyCompact(account.balance, currency),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = PureWhite,
+                fontFamily = GeistMono
+            )
+        }
+    }
+}
 
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    text = wallet.name,
-                    fontSize = 12.sp,
-                    color = if (isPrimaryContrast) Zinc700 else Zinc500,
-                    fontWeight = FontWeight.Normal
-                )
-                Text(
-                    text = String.format("%s%,.0f", wallet.currency, wallet.balance),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isPrimaryContrast) PitchBlack else PureWhite,
-                    fontFamily = FontFamily.SansSerif,
-                    letterSpacing = (-0.5).sp
-                )
+@Composable
+private fun CashFlowBarChart(data: List<CashFlowPoint>, modifier: Modifier = Modifier) {
+    val maxValue = remember(data) { (data.maxOfOrNull { maxOf(it.income, it.expense) } ?: 0L).coerceAtLeast(1L) }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(120.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        data.forEach { point ->
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(6.dp)
+                            .fillMaxHeight(fraction = (point.income.toFloat() / maxValue).coerceIn(0.02f, 1f))
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(PureWhite)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(6.dp)
+                            .fillMaxHeight(fraction = (point.expense.toFloat() / maxValue).coerceIn(0.02f, 1f))
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Zinc700)
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(text = point.month, fontSize = 10.sp, color = Zinc500, fontFamily = GeistMono)
             }
         }
     }
 }
 
 @Composable
-fun TransactionItemRow(transaction: Transaction) {
-    val isExpense = transaction.type.uppercase() == "EXPENSE"
+private fun CategoryBreakdownRow(data: List<CategoryBreakdownItem>) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        Canvas(modifier = Modifier.size(96.dp)) {
+            var startAngle = -90f
+            val strokeWidth = size.minDimension * 0.22f
+            data.forEach { item ->
+                val sweep = (item.percentage / 100f * 360f).toFloat().coerceAtLeast(0f)
+                drawArc(
+                    color = parseHexColor(item.color),
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
+                    topLeft = Offset(strokeWidth / 2, strokeWidth / 2),
+                    size = Size(size.width - strokeWidth, size.height - strokeWidth)
+                )
+                startAngle += sweep
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+            data.take(6).forEach { item ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(parseHexColor(item.color))
+                    )
+                    Text(
+                        text = item.categoryName,
+                        fontSize = 12.sp,
+                        color = Zinc400,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "${String.format("%.0f", item.percentage)}%",
+                        fontSize = 12.sp,
+                        color = PureWhite,
+                        fontFamily = GeistMono
+                    )
+                }
+            }
+        }
+    }
+}
 
+@Composable
+private fun RecentActivityRow(transaction: RecentTransaction, currency: String) {
+    val isExpense = transaction.type == TXN_TYPE_EXPENSE
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Zinc950)
-            .border(1.dp, Zinc900, RoundedCornerShape(16.dp))
-            .padding(12.dp)
-            .testTag("transaction_row_${transaction.id}"),
+            .background(Zinc900)
+            .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f)
-        ) {
-            // Category-Specific Decorative Emojis
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Zinc900),
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(transaction.category?.color?.let { parseHexColor(it).copy(alpha = 0.2f) } ?: Zinc800),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = when (transaction.category.uppercase()) {
-                        "FOOD", "DINING", "CAFE" -> "☕"
-                        "WELLNESS", "FITNESS", "HEALTH" -> "🧘"
-                        "DEVOPS", "TECH", "CLOUD", "SOFTWARE" -> "💻"
-                        "REVENUE", "SALARY", "BONUS" -> "💰"
-                        "INVESTING", "STOCKS" -> "📈"
-                        "RENT", "HOUSING" -> "🏠"
-                        else -> "💵"
-                    },
-                    fontSize = 18.sp
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(transaction.category?.color?.let { parseHexColor(it) } ?: Zinc500)
                 )
             }
-
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column {
                 Text(
-                    text = transaction.title,
+                    text = transaction.description.ifBlank { transaction.category?.name ?: transaction.type },
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
                     color = PureWhite,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = transaction.category,
-                        fontSize = 11.sp,
-                        color = Zinc500
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(3.dp)
-                            .clip(CircleShape)
-                            .background(Zinc700)
-                    )
-                    Text(
-                        text = transaction.date,
-                        fontSize = 11.sp,
-                        color = Zinc500
-                    )
-                }
+                Text(
+                    text = transaction.category?.name ?: transaction.type,
+                    fontSize = 11.sp,
+                    color = Zinc500
+                )
             }
         }
-
         Text(
-            text = String.format("%s%s%,.2f", if (isExpense) "-" else "+", if (transaction.amount < 0) "" else "", Math.abs(transaction.amount)),
-            fontSize = 14.sp,
+            text = (if (isExpense) "-" else "+") + formatMoney(transaction.amount, currency),
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (isExpense) Zinc300 else PureWhite,
-            fontFamily = FontFamily.SansSerif
-        )
-    }
-}
-
-@Composable
-fun LinearThinkingProgressIndicator() {
-    val infiniteTransition = rememberInfiniteTransition(label = "scanner")
-    val translationX by infiniteTransition.animateFloat(
-        initialValue = -0.3f,
-        targetValue = 1.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "translation"
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(2.dp)
-            .background(Zinc900)
-            .clip(RoundedCornerShape(1.dp))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(0.3f)
-                .align(Alignment.CenterStart)
-                .offset(x = (translationX * 300).dp) // simple approximate offset movement
-                .background(PureWhite)
+            color = if (isExpense) Zinc400 else PureWhite,
+            fontFamily = GeistMono
         )
     }
 }

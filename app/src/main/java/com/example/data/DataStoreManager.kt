@@ -44,6 +44,15 @@ class DataStoreManager(private val context: Context) {
         }
     }
 
+    /** Updates cached profile fields without touching the JWT — unlike [saveAuthData], never logs the user out. */
+    suspend fun updateUserInfo(name: String, email: String, currency: String) {
+        context.dataStore.edit { preferences ->
+            preferences[USER_NAME_KEY] = name
+            preferences[USER_EMAIL_KEY] = email
+            preferences[USER_CURRENCY_KEY] = currency
+        }
+    }
+
     suspend fun clearAuthData() {
         context.dataStore.edit { preferences ->
             preferences.remove(JWT_TOKEN_KEY)
